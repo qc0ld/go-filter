@@ -3,7 +3,9 @@ package tor
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,6 +20,10 @@ const (
 	expectedHash    = ""
 	httpConcurrency = 5
 	httpTimeout     = 10 * time.Second
+)
+
+var (
+	logger = log.New(os.Stdout, "[TOR] ", log.Ltime)
 )
 
 var (
@@ -42,25 +48,34 @@ type TorControl struct {
 }
 
 func GetConfluxExitIPs() []string {
+
 	tc, err := NewTorControl(controlPort)
 	if err != nil {
-		fmt.Println("Tor control error:", err)
+		logger.Printf("Tor control error: %v", err)
 		return nil
 	}
 	defer tc.Close()
 
 	if _, err = tc.Authenticate(); err != nil {
-		fmt.Println("Authentication error:", err)
+		logger.Printf("Authentication error: %v", err)
 		return nil
 	}
 
 	resp, err := tc.GetCircuitStatus()
 	if err != nil {
-		fmt.Println("Circuit status error:", err)
+		logger.Printf("Circuit status error: %v", err)
 		return nil
 	}
 
-	return processCircuitResponse(tc, resp)
+	ips := processCircuitResponse(tc, resp)
+
+	if len(ips) > 0 {
+		logger.Printf("Found exit nodes: %v", ips)
+	} else {
+		logger.Printf("No exit nodes found")
+	}
+
+	return ips
 }
 
 func NewTorControl(addr string) (*TorControl, error) {

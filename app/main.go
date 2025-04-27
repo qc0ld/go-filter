@@ -7,7 +7,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
+
+	//"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,7 +29,7 @@ import (
 const (
 	shutdownTimeout  = 2 * time.Second
 	dbTimeout        = 1 * time.Second
-	torCheckInterval = 30 * time.Second
+	torCheckInterval = 10 * time.Second
 	torControlPort   = "127.0.0.1:9151"
 	snapshotLength   = 1600
 )
@@ -131,12 +134,18 @@ func (a *App) processPacket(packet gopacket.Packet) {
 		return
 	}
 
-	ipv4, _ := ipLayer.(*layers.IPv4)
-	dstIP := ipv4.DstIP.String()
-
-	if _, loaded := a.processedIPs.LoadOrStore(dstIP, struct{}{}); !loaded {
-		a.checkIP(dstIP)
+	ipv4, ok := ipLayer.(*layers.IPv4)
+	if !ok {
+		return
 	}
+
+	dstIP := ipv4.DstIP.String()
+	if _, loaded := a.processedIPs.LoadOrStore(dstIP, struct{}{}); loaded {
+		return
+	}
+
+	logger.Printf("Packet received: %s -> %s", ipv4.SrcIP, dstIP)
+	a.checkIP(dstIP)
 
 	a.torMux.Lock()
 	torActive := a.isTorActive
@@ -148,36 +157,73 @@ func (a *App) processPacket(packet gopacket.Packet) {
 	}
 }
 
+func (a *App) stopTorBrowser() {
+	a.torMux.Lock()
+	defer a.torMux.Unlock()
+
+	if !a.isTorActive {
+		return
+	}
+
+	logger.Println("Stopping Tor browser...")
+
+	processes := []string{"firefox.real", "tor"}
+	for _, proc := range processes {
+		cmd := exec.Command("killall", "-9", proc)
+		cmd.Run()
+	}
+
+	a.torCheckMux.Lock()
+	if a.torCheckQuit != nil {
+		close(a.torCheckQuit)
+		a.torCheckQuit = nil
+	}
+	if a.torCheckTicker != nil {
+		a.torCheckTicker.Stop()
+		a.torCheckTicker = nil
+	}
+	a.torCheckMux.Unlock()
+
+	a.isTorActive = false
+	logger.Println("Tor browser fully stopped")
+}
+
 func (a *App) scheduleTorCheck() {
 	a.torCheckMux.Lock()
 	defer a.torCheckMux.Unlock()
 
-	if a.torCheckTicker == nil {
-		a.torCheckTicker = time.NewTicker(30 * time.Second)
+	if a.torCheckTicker == nil && a.isTorActive {
+		a.torCheckTicker = time.NewTicker(10 * time.Second)
 		a.torCheckQuit = make(chan struct{})
 
 		go func() {
 			defer func() {
 				a.torCheckMux.Lock()
-				a.torCheckTicker.Stop()
-				a.torCheckTicker = nil
+				if a.torCheckTicker != nil {
+					a.torCheckTicker.Stop()
+					a.torCheckTicker = nil
+				}
 				a.torCheckMux.Unlock()
 			}()
 
 			for {
 				select {
 				case <-a.torCheckTicker.C:
+					a.torMux.Lock()
+					torActive := a.isTorActive
+					a.torMux.Unlock()
+
+					if !torActive {
+						return
+					}
+
 					exitIPs := tor.GetConfluxExitIPs()
 					for _, ip := range exitIPs {
-						logger.Printf("Checking IP address in Tor circuit: %s", ip)
-
 						blocked, err := database.TorIsIPBlocked(ip)
 						if err != nil {
-							logger.Printf("IP check error: %v", err)
 							continue
 						}
 						if blocked {
-							logger.Printf("Blocked Tor node detected: %s", ip)
 							a.stopTorBrowser()
 							return
 						}
@@ -187,26 +233,6 @@ func (a *App) scheduleTorCheck() {
 				}
 			}
 		}()
-	}
-}
-
-func (a *App) stopTorBrowser() {
-	a.torMux.Lock()
-	defer a.torMux.Unlock()
-
-	if a.isTorActive {
-		// Реализация остановки Tor процесса
-		// Пример для Unix-систем:
-		// if pid != 0 {
-		//     syscall.Kill(pid, syscall.SIGTERM)
-		// }
-		a.isTorActive = false
-		logger.Println("Tor browser terminated due to blocked node")
-
-		// Остановка проверки
-		if a.torCheckQuit != nil {
-			close(a.torCheckQuit)
-		}
 	}
 }
 
