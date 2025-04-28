@@ -17,11 +17,15 @@ var (
 	dbUser     = "postgres"
 	dbPassword = "postgres"
 	dbName     = "blocked_ip_db"
-	logger     = log.New(os.Stdout, "[DATABASE] ", log.Ltime)
 )
 
+func init() {
+	log.SetOutput(os.Stdout)
+	log.SetFlags(log.Ltime)
+}
+
 func ConnectAndCheck() error {
-	logger.Println("Connecting to database")
+	log.Println("Connecting to database")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
@@ -35,7 +39,7 @@ func ConnectAndCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logger.Println("Checking if table exists")
+	log.Println("Checking if table exists")
 
 	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS blocked_ips (
 		id SERIAL PRIMARY KEY,
@@ -55,7 +59,7 @@ func ConnectAndCheck() error {
 		return fmt.Errorf("failed to create table tor_blocked_ips: %v", err)
 	}
 
-	logger.Println("Database connection and table creation successful")
+	log.Println("Database connection and table creation successful")
 	return nil
 }
 
@@ -64,14 +68,12 @@ func IsIPBlocked(ip string) (bool, error) {
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	db, err := sql.Open("postgres", dsn)
-
 	if err != nil {
 		return false, fmt.Errorf("failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-
 	defer cancel()
 
 	var exists bool
@@ -80,7 +82,7 @@ func IsIPBlocked(ip string) (bool, error) {
 		return false, fmt.Errorf("failed to check if IP is blocked: %v", err)
 	}
 
-	logger.Printf("IP %s blocked status: %v\n", ip, exists)
+	log.Printf("IP %s blocked status: %v", ip, exists)
 	return exists, nil
 }
 
@@ -89,14 +91,12 @@ func TorIsIPBlocked(ip string) (bool, error) {
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	db, err := sql.Open("postgres", dsn)
-
 	if err != nil {
 		return false, fmt.Errorf("failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-
 	defer cancel()
 
 	var exists bool
@@ -105,6 +105,6 @@ func TorIsIPBlocked(ip string) (bool, error) {
 		return false, fmt.Errorf("failed to check if IP is blocked: %v", err)
 	}
 
-	logger.Printf("IP %s blocked status: %v\n", ip, exists)
+	log.Printf("IP %s blocked status: %v", ip, exists)
 	return exists, nil
 }

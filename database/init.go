@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,14 +15,19 @@ import (
 )
 
 const (
-	BLACKLIST_FILE     = "../database/data/blacklist.txt"
-	NEW_BLACKLIST_FILE = "../database/data/blacklist-new.txt"
-	TOR_BLACKLIST_FILE = "../database/data/tor_blacklist.txt"
+	BLACKLIST_FILE     = "./database/data/blacklist.txt"
+	NEW_BLACKLIST_FILE = "./database/data/blacklist-new.txt"
+	TOR_BLACKLIST_FILE = "./database/data/tor_blacklist.txt"
 	batchSize          = 1000
 )
 
+func init() {
+	log.SetOutput(os.Stdout)
+	log.SetFlags(log.Ltime)
+}
+
 func InitializeDatabase() error {
-	logger.Println("Starting database initialization")
+	log.Println("Starting database initialization")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
@@ -51,12 +57,12 @@ func InitializeDatabase() error {
 		return err
 	}
 
-	logger.Println("Database initialization completed successfully")
+	log.Println("Database initialization completed successfully")
 	return nil
 }
 
 func createTables(db *sql.DB, ctx context.Context) error {
-	logger.Println("Creating database tables")
+	log.Println("Creating database tables")
 
 	tables := []string{
 		`CREATE TABLE IF NOT EXISTS blocked_ips (
@@ -78,7 +84,7 @@ func createTables(db *sql.DB, ctx context.Context) error {
 }
 
 func processMainBlacklist(db *sql.DB, ctx context.Context) error {
-	logger.Println("Processing main blacklist")
+	log.Println("Processing main blacklist")
 
 	oldIPs, err := loadExistingIPs(BLACKLIST_FILE)
 	if err != nil {
@@ -100,7 +106,7 @@ func processMainBlacklist(db *sql.DB, ctx context.Context) error {
 }
 
 func processTorBlacklist(db *sql.DB, ctx context.Context) error {
-	logger.Println("Processing Tor blacklist")
+	log.Println("Processing Tor blacklist")
 
 	torIPs, err := loadTorIPs()
 	if err != nil {
@@ -169,7 +175,7 @@ func loadTorIPs() ([]string, error) {
 	file, err := os.Open(TOR_BLACKLIST_FILE)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Println("Tor blacklist file not found, skipping")
+			log.Println("Tor blacklist file not found, skipping")
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error opening Tor blacklist: %v", err)
@@ -189,7 +195,7 @@ func loadTorIPs() ([]string, error) {
 
 func batchInsert(db *sql.DB, ctx context.Context, ips []string, table string) error {
 	if len(ips) == 0 {
-		logger.Printf("No new IPs to insert into %s", table)
+		log.Printf("No new IPs to insert into %s", table)
 		return nil
 	}
 
@@ -216,12 +222,12 @@ func batchInsert(db *sql.DB, ctx context.Context, ips []string, table string) er
 		return err
 	}
 
-	logger.Printf("Successfully inserted %d IPs into %s", len(ips), table)
+	log.Printf("Successfully inserted %d IPs into %s", len(ips), table)
 	return nil
 }
 
 func updateBlacklistFile() error {
-	logger.Println("Updating blacklist")
+	log.Println("Updating blacklist")
 
 	cmd := exec.Command("bash", "-c",
 		"curl -s https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt | "+
@@ -235,7 +241,7 @@ func updateBlacklistFile() error {
 }
 
 func finalizeUpdate() error {
-	logger.Println("Finalizing update process")
+	log.Println("Finalizing update process")
 
 	if err := os.Remove(BLACKLIST_FILE); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error removing old blacklist: %v", err)
