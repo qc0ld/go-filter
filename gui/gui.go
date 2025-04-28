@@ -1,14 +1,17 @@
 package gui
 
 import (
+	"fmt"
 	gofilterapp "gofilter/app"
 	"log"
+	"net"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
@@ -27,10 +30,10 @@ type GUI struct {
 	startBtn        *widget.Button
 	stopBtn         *widget.Button
 	blockedList     *widget.List
-	addTorBtn       *widget.Button
-	removeTorBtn    *widget.Button
 	addNormalBtn    *widget.Button
 	removeNormalBtn *widget.Button
+	addTorBtn       *widget.Button
+	removeTorBtn    *widget.Button
 	logEntry        *widget.Entry
 	logScroll       *container.Scroll
 	logChan         <-chan string
@@ -55,14 +58,46 @@ func NewGUI(mainApp *gofilterapp.App, logChan <-chan string) *GUI {
 func (g *GUI) createUI() {
 	g.status = widget.NewLabel("Status: Stopped")
 	g.torStatus = widget.NewLabel("Tor: Inactive")
+	statusVBox := container.NewVBox(
+		g.status,
+		g.torStatus,
+	)
 
 	g.startBtn = widget.NewButton("Start Monitoring", g.start)
 	g.stopBtn = widget.NewButton("Stop Monitoring", g.stop)
 	g.stopBtn.Disable()
 
+	g.addNormalBtn = widget.NewButton("Block IP", func() {
+		g.showIPDialog("Add IP to Blocklist", g.mainApp.AddNormalIP)
+	})
+	g.removeNormalBtn = widget.NewButton("Unblock IP", func() {
+		g.showIPDialog("Remove IP from Blocklist", g.mainApp.RemoveNormalIP)
+	})
+	g.addTorBtn = widget.NewButton("Block Tor Node", func() {
+		g.showIPDialog("Add exit node IP to Blocklist", g.mainApp.AddTorIP)
+	})
+	g.removeTorBtn = widget.NewButton("Unblock Tor Node", func() {
+		g.showIPDialog("Remove exit node IP from Blocklist", g.mainApp.RemoveTorIP)
+	})
+
+	actionButtonsGrid := container.NewGridWithColumns(2,
+		g.addNormalBtn,
+		g.addTorBtn,
+		g.removeNormalBtn,
+		g.removeTorBtn,
+	)
+
+	header := container.NewHBox(
+		g.startBtn,
+		g.stopBtn,
+		actionButtonsGrid,
+		layout.NewSpacer(),
+		statusVBox,
+	)
+
 	g.blockedList = widget.NewList(
 		func() int { return len(g.mainApp.GetBlockedIPs()) },
-		func() fyne.CanvasObject { return widget.NewLabel("template") },
+		func() fyne.CanvasObject { return widget.NewLabel("template ip address") },
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			ips := g.mainApp.GetBlockedIPs()
 			if id >= 0 && id < len(ips) {
@@ -72,36 +107,74 @@ func (g *GUI) createUI() {
 			}
 		},
 	)
+	listContainer := container.NewScroll(g.blockedList)
+
+	blockedListLabel := widget.NewLabel("Blocked IP's")
+	centeredLabel := container.NewCenter(blockedListLabel)
+
+	listAreaWithTitle := container.NewBorder(
+		centeredLabel,
+		nil,
+		nil,
+		nil,
+		listContainer,
+	)
 
 	g.logEntry = widget.NewMultiLineEntry()
 	g.logEntry.Wrapping = fyne.TextWrapOff
-
-	header := container.NewHBox(
-		g.startBtn,
-		g.stopBtn,
-		layout.NewSpacer(),
-		container.NewVBox(
-			g.status,
-			g.torStatus,
-		),
-	)
-
-	listContainer := container.NewScroll(g.blockedList)
 	g.logScroll = container.NewScroll(g.logEntry)
 
-	split := container.NewVSplit(listContainer, g.logScroll)
+	split := container.NewVSplit(listAreaWithTitle, g.logScroll)
 	split.Offset = 0.6
 
 	content := container.NewBorder(
-		header, nil, nil, nil,
+		header,
+		nil, nil, nil,
 		split,
 	)
 
 	g.window.SetContent(content)
+
 	g.window.SetCloseIntercept(func() {
+		log.Println("Window close intercepted.")
 		g.stop()
 		g.window.Close()
 	})
+}
+
+func (g *GUI) showIPDialog(title string, actionFunc func(string) error) {
+	ipEntry := widget.NewEntry()
+	ipEntry.SetPlaceHolder("Enter IP address...")
+
+	dialog.ShowCustomConfirm(title, "Submit", "Cancel", ipEntry, func(confirm bool) {
+		if !confirm {
+			return
+		}
+		ipStr := strings.TrimSpace(ipEntry.Text)
+		if ipStr == "" {
+			dialog.ShowError(fmt.Errorf("IP address cannot be empty"), g.window)
+			return
+		}
+
+		if net.ParseIP(ipStr) == nil {
+			dialog.ShowError(fmt.Errorf("invalid IP address format: %s", ipStr), g.window)
+			return
+		}
+
+		go func(ipToProcess string) {
+			err := actionFunc(ipToProcess)
+			if err != nil {
+				log.Printf("Error executing '%s' for IP %s: %v", title, ipToProcess, err)
+				errorMsg := fmt.Sprintf("Operation '%s' failed for IP %s: %v", title, ipToProcess, err)
+				dialog.ShowError(fmt.Errorf(errorMsg), g.window)
+			} else {
+				log.Printf("Successfully executed '%s' for IP %s", title, ipToProcess)
+				successMsg := fmt.Sprintf("Operation '%s' successful for IP: %s", title, ipToProcess)
+				dialog.ShowInformation("Success", successMsg, g.window)
+			}
+		}(ipStr)
+
+	}, g.window)
 }
 
 func (g *GUI) start() {
@@ -146,8 +219,6 @@ func (g *GUI) start() {
 }
 
 func (g *GUI) stop() {
-	g.mainApp.Shutdown()
-
 	if g.stopUpdatesChan != nil {
 		select {
 		case <-g.stopUpdatesChan:
@@ -182,6 +253,13 @@ func (g *GUI) stop() {
 	if g.blockedList != nil {
 		g.blockedList.Refresh()
 	}
+	go func() {
+		if g.mainApp != nil {
+			g.mainApp.Shutdown()
+		}
+	}()
+
+	g.updateStatusFromGoroutine("Status: Stopping")
 }
 
 func (g *GUI) setupUpdates(stopChan <-chan struct{}) {

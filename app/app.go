@@ -79,7 +79,7 @@ func (a *App) GetBlockedIPs() []string {
 	defer a.routeCacheMux.Unlock()
 	ips := make([]string, 0, len(a.routeCache))
 	for _, route := range a.routeCache {
-		ips = append(ips, route.Dst.String())
+		ips = append(ips, route.Dst.IP.String())
 	}
 	return ips
 }
@@ -121,24 +121,18 @@ func (a *App) Run() error {
 
 	a.wg.Add(3)
 
-	go func() {
-		defer a.wg.Done()
-		a.packetWorker()
-	}()
-
-	go func() {
-		defer a.wg.Done()
-		a.torChecker()
-	}()
-
-	go func() {
-		defer a.wg.Done()
-		a.signalHandler()
-	}()
+	go a.packetWorker()
+	go a.torChecker()
+	go a.signalHandler()
 
 	log.Println("Application started")
 
 	<-a.shutdownChan
+
+	a.wg.Wait()
+
+	a.cleanup()
+	log.Println("Cleanup finished")
 	return nil
 }
 
@@ -440,6 +434,46 @@ func isSameDomain(a, b string) bool {
 	return normalize(a) == normalize(b)
 }
 
+func validateIP(ipStr string) (net.IP, error) {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid IP address format: %s", ipStr)
+	}
+	return ip, nil
+}
+
+func (a *App) AddNormalIP(ipStr string) error {
+	ip, err := validateIP(ipStr)
+	if err != nil {
+		return err
+	}
+	return database.AddBlockedIP(ip.String())
+}
+
+func (a *App) RemoveNormalIP(ipStr string) error {
+	ip, err := validateIP(ipStr)
+	if err != nil {
+		return err
+	}
+	return database.RemoveBlockedIP(ip.String())
+}
+
+func (a *App) AddTorIP(ipStr string) error {
+	ip, err := validateIP(ipStr)
+	if err != nil {
+		return err
+	}
+	return database.AddTorBlockedIP(ip.String())
+}
+
+func (a *App) RemoveTorIP(ipStr string) error {
+	ip, err := validateIP(ipStr)
+	if err != nil {
+		return err
+	}
+	return database.RemoveTorBlockedIP(ip.String())
+}
+
 func (a *App) signalHandler() {
 	defer a.wg.Done()
 	sigChan := make(chan os.Signal, 1)
@@ -447,7 +481,7 @@ func (a *App) signalHandler() {
 
 	select {
 	case <-sigChan:
-		log.Println("Shutting down...")
+		log.Println("Shutting down")
 		a.emergencyShutdown()
 	case <-a.ctx.Done():
 	}
@@ -492,7 +526,7 @@ func (a *App) cleanupRoutes(ctx context.Context) {
 	a.routeCacheMux.Lock()
 	defer a.routeCacheMux.Unlock()
 
-	log.Println("Clearing routes...")
+	log.Println("Clearing routes")
 	var wg sync.WaitGroup
 
 	for _, route := range a.routeCache {
@@ -500,7 +534,6 @@ func (a *App) cleanupRoutes(ctx context.Context) {
 		go func(r netlink.Route) {
 			defer wg.Done()
 			if err := netlink.RouteDel(&r); err != nil {
-				log.Printf("Route delete failed: %v", err)
 			}
 		}(route)
 	}

@@ -108,3 +108,99 @@ func TorIsIPBlocked(ip string) (bool, error) {
 	log.Printf("IP %s blocked status: %v", ip, exists)
 	return exists, nil
 }
+
+func AddBlockedIP(ip string) error {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	query := "INSERT INTO blocked_ips (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING"
+	_, err = db.ExecContext(ctx, query, ip)
+	if err != nil {
+		return fmt.Errorf("failed to insert IP %s into blocked_ips: %w", ip, err)
+	}
+	log.Printf("Attempted to add IP %s to blocked_ips", ip)
+	return nil
+}
+
+func RemoveBlockedIP(ip string) error {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	query := "DELETE FROM blocked_ips WHERE ip = $1"
+	result, err := db.ExecContext(ctx, query, ip)
+	if err != nil {
+		return fmt.Errorf("failed to delete IP %s from blocked_ips: %w", ip, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("Successfully removed IP %s from blocked_ips", ip)
+	} else {
+		log.Printf("IP %s not found in blocked_ips for removal or already removed", ip)
+	}
+	return nil
+}
+
+func AddTorBlockedIP(ip string) error {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	query := "INSERT INTO tor_blocked_ips (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING"
+	_, err = db.ExecContext(ctx, query, ip)
+	if err != nil {
+		return fmt.Errorf("failed to insert IP %s into tor_blocked_ips: %w", ip, err)
+	}
+	log.Printf("Attempted to add IP %s to tor_blocked_ips", ip)
+	return nil
+}
+
+func RemoveTorBlockedIP(ip string) error {
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	query := "DELETE FROM tor_blocked_ips WHERE ip = $1"
+	result, err := db.ExecContext(ctx, query, ip)
+	if err != nil {
+		return fmt.Errorf("failed to delete IP %s from tor_blocked_ips: %w", ip, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("Successfully removed IP %s from tor_blocked_ips", ip)
+	} else {
+		log.Printf("IP %s not found in tor_blocked_ips for removal or already removed", ip)
+	}
+	return nil
+}
