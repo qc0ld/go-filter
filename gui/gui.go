@@ -286,7 +286,7 @@ func (g *GUI) runLogUpdater(stopChan <-chan struct{}) {
 			trimmedMsg := strings.TrimSpace(msg)
 
 			fyne.Do(func() {
-				if g.logEntry != nil && g.logScroll != nil {
+				if g.logEntry != nil && g.logScroll != nil && g.window != nil {
 
 					g.currentLogLines = append(g.currentLogLines, trimmedMsg)
 					if len(g.currentLogLines) > maxLogLines {
@@ -296,12 +296,12 @@ func (g *GUI) runLogUpdater(stopChan <-chan struct{}) {
 					logText := strings.Join(g.currentLogLines, "\n")
 					g.logEntry.SetText(logText)
 
+					g.window.Canvas().Refresh(g.logScroll)
+
 					g.logScroll.ScrollToBottom()
 
-				} else {
 				}
 			})
-
 		case <-stopChan:
 			return
 		}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,9 +21,9 @@ const (
 	httpTimeout     = 10 * time.Second
 )
 
-var (
-	logger = log.New(os.Stdout, "[TOR] ", log.Ltime)
-)
+func init() {
+	log.SetFlags(log.Ltime)
+}
 
 var (
 	nodeIDRegex    = regexp.MustCompile(`\$\b[0-9A-F]{40}\b`)
@@ -48,31 +47,30 @@ type TorControl struct {
 }
 
 func GetConfluxExitIPs() []string {
-
 	tc, err := NewTorControl(controlPort)
 	if err != nil {
-		logger.Printf("Tor control error: %v", err)
+		log.Printf("Tor control error: %v", err)
 		return nil
 	}
 	defer tc.Close()
 
 	if _, err = tc.Authenticate(); err != nil {
-		logger.Printf("Authentication error: %v", err)
+		log.Printf("Authentication error: %v", err)
 		return nil
 	}
 
 	resp, err := tc.GetCircuitStatus()
 	if err != nil {
-		logger.Printf("Circuit status error: %v", err)
+		log.Printf("Circuit status error: %v", err)
 		return nil
 	}
 
 	ips := processCircuitResponse(tc, resp)
 
 	if len(ips) > 0 {
-		logger.Printf("Found exit nodes: %v", ips)
+		log.Printf("Found exit nodes: %v", ips)
 	} else {
-		logger.Printf("No exit nodes found")
+		log.Printf("No exit nodes found")
 	}
 
 	return ips

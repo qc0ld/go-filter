@@ -498,7 +498,7 @@ func (a *App) emergencyShutdown() {
 
 func (a *App) forceShutdown() {
 	time.Sleep(shutdownTimeout)
-	log.Println("Force shutdown!")
+	log.Println("Force shutdown")
 	os.Exit(1)
 }
 
