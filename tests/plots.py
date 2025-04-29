@@ -5,7 +5,6 @@ import matplotlib
 import glob 
 
 
-
 try:
     matplotlib.rcParams['font.family'] = 'DejaVu Sans'
     matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
@@ -14,13 +13,7 @@ except Exception as e:
     print(f"Warning: Failed to set 'DejaVu Sans' font. Cyrillic text might not display correctly. Error: {e}")
     print("Please ensure you have a Cyrillic-supporting font installed (e.g., 'DejaVu Sans').")
 
-
-
-
-
 BASE_DIR = os.path.join(os.getcwd(), 'results')
-
-
 
 TOOLS = ['gofilter', 'iptables', 'suricata', 'xdpfilter']
 METRICS_FILES = {
@@ -28,7 +21,6 @@ METRICS_FILES = {
     'cpu': 'system_cpu_vs_*',
     'memory': 'system_mem_vs_*'
 }
-
 
 METRIC_NAMES_RU = {
     'bandwidth': 'Пропускная способность (Мбит/с)',
@@ -40,13 +32,10 @@ X_AXIS_LABEL_RU = 'Количество правил / IP-адресов'
 
 PLOTS_DIR = os.path.join(BASE_DIR, 'plots')
 
-
 os.makedirs(PLOTS_DIR, exist_ok=True)
 print(f"Plots will be saved in: {PLOTS_DIR}")
 
-
 all_data = {metric: {} for metric in METRICS_FILES.keys()} 
-
 
 print("\n--- Generating Individual Plots ---")
 for tool in TOOLS:
@@ -65,21 +54,16 @@ for tool in TOOLS:
             print(f"  Warning: Could not find {metric_key} CSV file for {tool} using pattern: {search_pattern}")
             continue
 
-        
         csv_file = found_files[0]
         print(f"  Processing file: {os.path.basename(csv_file)}")
-
         try:
             df = pd.read_csv(csv_file)
-
             
             if df.empty or len(df.columns) < 2:
                 print(f"  Warning: File '{os.path.basename(csv_file)}' is empty or has invalid format. Skipping.")
                 continue
-
             
             all_data[metric_key][tool] = df
-
             
             x_col_name = df.columns[0] 
             y_col_name = df.columns[1] 
@@ -88,13 +72,11 @@ for tool in TOOLS:
             
             plt.plot(df[x_col_name], df[y_col_name], marker='o', linestyle='-', markersize=4)
 
-            
             plt.title(f'{METRIC_NAMES_RU[metric_key]} для {tool.capitalize()}') 
             plt.xlabel(X_AXIS_LABEL_RU) 
             plt.ylabel(METRIC_NAMES_RU[metric_key]) 
             plt.grid(True)
             plt.tight_layout() 
-
             
             plot_filename = f"{tool}_{metric_key}.png"
             plot_filepath = os.path.join(PLOTS_DIR, plot_filename)
@@ -108,7 +90,6 @@ for tool in TOOLS:
              print(f"  Error: File is empty: {csv_file}")
         except Exception as e:
             print(f"  Error processing file {csv_file}: {e}")
-
 
 
 print("\n--- Generating Combined Plots ---")
@@ -139,7 +120,6 @@ for metric_key, metric_name_ru in METRIC_NAMES_RU.items():
         print(f"  No valid data series found for combined metric '{metric_key}'. Skipping plot.")
         plt.close()
         continue
-
     
     plt.title(f'Сравнение: {metric_name_ru}') 
     plt.xlabel(X_AXIS_LABEL_RU) 
@@ -147,7 +127,6 @@ for metric_key, metric_name_ru in METRIC_NAMES_RU.items():
     plt.legend() 
     plt.grid(True)
     plt.tight_layout()
-
     
     plot_filename = f"combined_{metric_key}.png"
     plot_filepath = os.path.join(PLOTS_DIR, plot_filename)
