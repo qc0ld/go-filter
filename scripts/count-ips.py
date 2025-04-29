@@ -31,7 +31,7 @@ def check_duplicates(file_path):
     except Exception as e:
         print(f"Error: {e}")
 
-file_paths = ["./results/all-nodes.txt", "./results/exit-nodes.txt", "./results/bad-exit-nodes.txt"]
+file_paths = ["../database/data/all-nodes.txt", "../database/data/exit-nodes.txt", "../database/data/bad-exit-nodes.txt"]
 
 for file_path in file_paths:
     check_duplicates(file_path)

@@ -21,6 +21,12 @@ const (
 	httpTimeout     = 10 * time.Second
 )
 
+type ByCreated []CircuitInfo
+
+func (a ByCreated) Len() int           { return len(a) }
+func (a ByCreated) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByCreated) Less(i, j int) bool { return a[i].Created.Before(a[j].Created) }
+
 func init() {
 	log.SetFlags(log.Ltime)
 }
@@ -202,9 +208,3 @@ func uniqueIPs(circuits []CircuitInfo) []string {
 	}
 	return ips
 }
-
-type ByCreated []CircuitInfo
-
-func (a ByCreated) Len() int           { return len(a) }
-func (a ByCreated) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByCreated) Less(i, j int) bool { return a[i].Created.Before(a[j].Created) }

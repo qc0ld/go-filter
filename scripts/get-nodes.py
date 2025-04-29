@@ -8,7 +8,7 @@ ALL_NODES_FILE = "../database/data/all-nodes.txt"
 BAD_EXIT_NODES_FILE = "../database/data/bad-exit-nodes.txt"
 TOR_CONFIG_FILE = "/etc/tor/torrc"
 
-def block_ip_in_tor_config(ip_address, exit_node):
+def add_node_to_file(ip_address, exit_node):
     try:
         if (exit_node == 1):
             with open(EXIT_NODES_FILE, "a") as exit_nodes_file:
@@ -19,18 +19,6 @@ def block_ip_in_tor_config(ip_address, exit_node):
         else:
             with open(ALL_NODES_FILE, "a") as all_nodes_file:
                 all_nodes_file.write("{}\n".format(ip_address))
-
-
-        #with open(TOR_CONFIG_FILE, 'r') as file:
-        #    lines = file.readlines()
-        #        
-        #lines[-1] = lines[-1].rstrip('\n') + ',' + ip_address + '\n'
-    
-        #with open(TOR_CONFIG_FILE, 'w') as file:
-        #    file.writelines(lines)
-
-        #with open(TOR_CONFIG_FILE, 'a') as file:
-        #    file.write(f"ExcludeNodes {ip_address}\n")
 
         print(f"IP address {ip_address} has been processed")
     except Exception as e:
@@ -63,7 +51,7 @@ def main():
 
                         exit_node = is_exit_node(router)
                         
-                        block_ip_in_tor_config(router.address, exit_node)
+                        add_node_to_file(router.address, exit_node)
 
             try:
                 result = subprocess.run(command, check=True, capture_output=True, text=True)
@@ -72,11 +60,10 @@ def main():
                 print("Error restarting Tor.")
 
             time.sleep(20)
-
+    
         except Exception as e:
             print(f"An error occurred: {e}")
-            print("Waiting 60 seconds before retrying.")
-            time.sleep(60)
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
