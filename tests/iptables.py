@@ -13,10 +13,10 @@ GENERATOR_IP = "192.168.188.183"
 DUT_IP = "192.168.188.182"          
 SSH_USER = "kali"                   
 SSH_PASSWORD = "kali"               
-TEST_DURATION = 30                  
+TEST_DURATION = 10                  
 MONITOR_INTERVAL = 2                
 
-RULE_COUNTS = list(range(0, 50001, 10000))
+RULE_COUNTS = list(range(0, 50001, 1000))
 
 RESULTS_DIR = "./results/iptables"
 
@@ -108,7 +108,6 @@ def stop_background_monitor(process):
         except Exception as kill_e:
             print(f"ERROR: Failed to kill monitor PID={process.pid} directly after error: {kill_e}")
         return None, str(e)
-
 
 def generate_random_ip():
     while True:
@@ -207,8 +206,6 @@ def display_and_count_input_rules():
     for i, line in enumerate(lines):
         if i < header_lines:
             continue 
-
-        
         if line.strip() and line.strip().split()[0].isdigit():
             rule_count += 1
             if rule_count <= 3: 
@@ -226,7 +223,6 @@ def display_and_count_input_rules():
 
     print("--- End Verification ---")
     return rule_count
-
 
 def parse_iperf_output(output):
     if not output: return 0.0
@@ -260,9 +256,7 @@ def parse_iperf_output(output):
                     elif part_lower == "bits/sec":
                          unit_multiplier = 0.000001
                          rate_found = True
-
                     if rate_found:
-                        
                         if i > 0:
                             value_index = i - 1
                             break
@@ -279,9 +273,6 @@ def parse_iperf_output(output):
                 print(f"Warning: Could not parse bandwidth value from line: '{line.strip()}'")
                 continue
     print("WARNING: Failed to parse iperf bandwidth from output.")
-    
-    
-    
     return 0.0
 
 def parse_vmstat_output(output):
@@ -290,12 +281,10 @@ def parse_vmstat_output(output):
     us_idx = -1
     sy_idx = -1
     headers_found = False
-
     for line in output.strip().split('\n'):
         line = line.strip()
         if not line:
             continue
-
         if not headers_found:
             if 'us' in line and 'sy' in line and 'id' in line:
                 headers = line.split()
@@ -311,7 +300,6 @@ def parse_vmstat_output(output):
             if len(parts) < max(us_idx, sy_idx) + 1:
                 print(f"Debug: Skipping line (not enough columns): {line}")
                 continue
-
             try:
                 us = float(parts[us_idx])
                 sy = float(parts[sy_idx])
@@ -319,11 +307,9 @@ def parse_vmstat_output(output):
                 cpu_samples.append(cpu_total)
             except (ValueError, IndexError) as e:
                 print(f"WARNING: Failed to parse CPU values from line: {line} ({str(e)})")
-
     if not cpu_samples:
         print("WARNING: No valid CPU samples found in vmstat output")
         return 0.0
-
     avg_cpu = sum(cpu_samples) / len(cpu_samples)
     return round(avg_cpu, 2)
 
@@ -335,8 +321,6 @@ def parse_sar_mem_output(output):
     count = 0
     memused_index = -1
     header_found = False
-
-    
     for line in lines:
         parts = line.split()
         if not parts: continue
@@ -370,7 +354,6 @@ def parse_sar_mem_output(output):
                     if 0 <= avg_val <= 100:
                         avg_mem_from_average_line = avg_val
                         print(f"Found Average line value for %memused: {avg_mem_from_average_line:.2f}%")
-                        
                         break
                     else:
                         print(f"WARNING: Unreasonable value in Average line '%memused' column: {parts[memused_index]}")
@@ -389,8 +372,6 @@ def parse_sar_mem_output(output):
                 else:
                     print(f"Warning: Skipping unreasonable %memused value ({mem_used_percent:.2f}%) from line: {line}")
             except (ValueError, IndexError):
-                
-                
                 continue
     if avg_mem_from_average_line >= 0:
          print(f"Using value from Average line: {avg_mem_from_average_line:.2f}%")
@@ -408,7 +389,6 @@ def parse_sar_mem_output(output):
         print("--- end sar output ---")
         return 0.0
 
-
 def write_results_to_csv(filename, header, data_row):
     file_exists = os.path.isfile(filename)
     try:
@@ -420,11 +400,8 @@ def write_results_to_csv(filename, header, data_row):
     except Exception as e:
         print(f"ERROR: Writing to CSV {filename}: {e}")
 
-
 if __name__ == "__main__":
     print("Starting iptables INPUT chain performance test...")
-
-    
     required_tools = ["iptables", "iptables-restore", "vmstat", "sar", "sshpass", "iperf3", "sudo"]
     missing_tools = []
     for tool in required_tools:
@@ -438,10 +415,8 @@ if __name__ == "__main__":
             print("Hint: Install 'sshpass' (e.g., 'sudo apt install sshpass').")
         exit(1)
 
-    
     os.makedirs(RESULTS_DIR, exist_ok=True)
     print(f"Results will be saved in: {RESULTS_DIR}")
-
     
     for f in [FILENAME_BANDWIDTH, FILENAME_CPU, FILENAME_MEM]:
         if os.path.exists(f):
@@ -451,19 +426,17 @@ if __name__ == "__main__":
             except OSError as e:
                  print(f"Warning: Could not remove {f}: {e}")
 
-    
     if not clear_all_iptables_rules():
          print("Warning: Initial iptables clear reported errors. Continuing cautiously.")
 
-    
     print("\n--- Starting iperf3 server on DUT ---")
     iperf_server_cmd = ["iperf3", "-s", "-B", DUT_IP]
     iperf_server_process = start_background_monitor(iperf_server_cmd)
     if not iperf_server_process:
          print("CRITICAL ERROR: Failed to start iperf3 server on DUT. Exiting.")
          exit(1)
-    print("iperf3 server started. Waiting 3s...")
-    time.sleep(3)
+    print("iperf3 server started. Waiting 2s...")
+    time.sleep(2)
 
     
     for count in RULE_COUNTS:
@@ -472,9 +445,7 @@ if __name__ == "__main__":
         sar_monitor = None
         vmstat_output = None
         sar_output = None
-
         try:
-            
             print("\n--- Step 1: Preparing iptables Rules ---")
             
             if not clear_all_iptables_rules():
@@ -490,20 +461,16 @@ if __name__ == "__main__":
             else:
                 print("Using default ACCEPT policy (0 rules).")
 
-            
             actual_rules = display_and_count_input_rules()
             if count > 0 and actual_rules < count * 0.9: 
                  print(f"WARNING: Expected {count} rules, but found only {actual_rules}. Check iptables-restore output.")
-                 
 
-            print(f"Rules prepared for {count}. Waiting 5s before monitoring...")
-            time.sleep(5)
-
+            print(f"Rules prepared for {count}. Waiting 3s before monitoring...")
+            time.sleep(3)
             
             print("\n--- Step 2: Starting Resource Monitors (vmstat & sar) ---")
             
             num_samples = (TEST_DURATION // MONITOR_INTERVAL) + 5 
-
             
             vmstat_cmd = ["vmstat", str(MONITOR_INTERVAL), str(num_samples)]
             vmstat_monitor = start_background_monitor(vmstat_cmd)
@@ -519,7 +486,6 @@ if __name__ == "__main__":
                 continue
             print("Monitors started. Waiting 3s before traffic...")
             time.sleep(3)
-
             
             print("\n--- Step 3: Starting Traffic Generation ---")
             iperf_client_cmd = f"iperf3 -c {DUT_IP} -t {TEST_DURATION} -B {GENERATOR_IP} -P {IPERF_STREAMS}"
@@ -535,7 +501,6 @@ if __name__ == "__main__":
 
             vmstat_output, vmstat_err = stop_background_monitor(vmstat_monitor)
             sar_output, sar_err = stop_background_monitor(sar_monitor)
-
             
             print("\n--- Step 5: Processing and Recording Results ---")
             bandwidth_mbps = parse_iperf_output(iperf_stdout) if iperf_stdout else 0.0
@@ -560,8 +525,8 @@ if __name__ == "__main__":
 
         finally:
             print(f"--- Test for {count} rules completed ---")
-            print("Waiting 5s before next rule count...")
-            time.sleep(5)
+            print("Waiting 3s before next rule count...")
+            time.sleep(3)
 
     
     print("\n" + "="*10 + " Final Cleanup " + "="*10)

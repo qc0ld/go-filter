@@ -18,7 +18,7 @@ SSH_PASSWORD = "kali"
 TEST_DURATION = 10                  
 MONITOR_INTERVAL = 2                
 
-RULE_COUNTS = list(range(0, 50001, 10000))
+RULE_COUNTS = list(range(0, 50001, 1000))
 IPERF_STREAMS = 4                   
 
 
@@ -61,7 +61,6 @@ def run_remote_command(host, user, password, cmd_str, timeout=None):
         return None, e.stderr
     except subprocess.TimeoutExpired: print(f"ERROR: Timeout on remote command to {host}"); return None, "Timeout"
     except Exception as e: print(f"ERROR: Unexpected error on remote command to {host}: {e}"); return None, str(e)
-
 
 def start_background_monitor(cmd_list):
     print(f"Starting background monitor: {' '.join(cmd_list)}")
@@ -110,7 +109,6 @@ def stop_background_monitor(process):
         except Exception as kill_e:
             print(f"ERROR: Failed to kill monitor PID={process.pid} directly after error: {kill_e}")
         return None, str(e)
-
 
 def get_db_connection():
     try:
@@ -217,7 +215,6 @@ def count_blocked_ips():
         if conn:
             conn.close()
     return count
-
 
 def parse_iperf_output(output):
     if not output: return 0.0
@@ -436,8 +433,6 @@ if __name__ == "__main__":
         if "sshpass" in missing_tools: print("Hint: Install 'sshpass'.")
         exit(1)
 
-
-    
     os.makedirs(RESULTS_DIR, exist_ok=True)
     print(f"Results will be saved in: {RESULTS_DIR}")
 
@@ -453,7 +448,6 @@ if __name__ == "__main__":
     if not clear_blocked_ips():
         print("CRITICAL ERROR: Failed initial database cleanup. Exiting.")
         exit(1)
-
     
     print("\n--- Starting iperf3 server on DUT ---")
     iperf_server_cmd = ["iperf3", "-s", "-B", DUT_IP]
@@ -462,17 +456,15 @@ if __name__ == "__main__":
         print("CRITICAL ERROR: Failed to start iperf3 server. Exiting.")
         clear_blocked_ips()
         exit(1)
-    print("iperf3 server started. Waiting 3s...")
-    time.sleep(3)
+    print("iperf3 server started. Waiting 2...")
+    time.sleep(2)
 
-    
     for count in RULE_COUNTS:
         print(f"\n{'='*10} TESTING: {filter_name} with {count} IPs in DB {'='*10}")
         vmstat_monitor = None
         sar_monitor = None
         vmstat_output = None
         sar_output = None
-
         
         print("\n--- Step 1: Preparing Database ---")
         if not clear_blocked_ips():
@@ -489,8 +481,8 @@ if __name__ == "__main__":
         if actual_ips_in_db != count:
             print(f"WARNING: Expected {count} IPs in DB, but found {actual_ips_in_db}.")
 
-        print(f"Database prepared with {actual_ips_in_db} IPs. Waiting 5s before monitoring...")
-        time.sleep(5)
+        print(f"Database prepared with {actual_ips_in_db} IPs. Waiting 2s before monitoring...")
+        time.sleep(2)
 
         try:
             
@@ -506,9 +498,8 @@ if __name__ == "__main__":
                  stop_background_monitor(sar_monitor)
                  continue
 
-            print(f"System monitors (vmstat, sar) started. Waiting 3s before traffic...")
-            time.sleep(3)
-
+            print(f"System monitors (vmstat, sar) started. Waiting 2s before traffic...")
+            time.sleep(2)
             
             print("\n--- Step 3: Starting Traffic Generation (iperf3 client) ---")
             iperf_client_cmd = f"iperf3 -c {DUT_IP} -t {TEST_DURATION} -B {GENERATOR_IP} -P {IPERF_STREAMS}"
@@ -516,7 +507,6 @@ if __name__ == "__main__":
             print("--- Traffic Generation Finished ---")
             if iperf_stdout is None:
                 print("ERROR: iperf3 client failed or timed out.")
-
             
             print("\n--- Step 4: Stopping Resource Monitors ---")
             print(f"Waiting {MONITOR_INTERVAL}s for final monitor samples...")
@@ -546,9 +536,8 @@ if __name__ == "__main__":
         finally:
             
             print(f"--- Test for {count} IPs ({filter_name}) completed ---")
-            print("Waiting 5s before next rule count...")
-            time.sleep(5)
-
+            print("Waiting 3s before next rule count...")
+            time.sleep(3)
     
     print("\n" + "="*10 + " Final Cleanup " + "="*10)
     print("Final database cleanup...")

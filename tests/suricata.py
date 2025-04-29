@@ -16,7 +16,7 @@ SSH_USER = "kali"
 SSH_PASSWORD = "kali"               
 TEST_DURATION = 10
 MONITOR_INTERVAL = 2
-RULE_COUNTS = list(range(0, 50001, 10000))
+RULE_COUNTS = list(range(0, 50001, 1000))
 DUT_INTERFACE = "eth0"
 SURICATA_CONFIG_FILE = "/etc/suricata/suricata.yaml"
 TEMP_RULES_DIR = "/tmp/suricata_test_rules"
@@ -63,7 +63,6 @@ def run_remote_command(host, user, password, cmd_str, timeout=None):
         return None, e.stderr
     except subprocess.TimeoutExpired: print(f"ERROR: Timeout on remote command to {host}"); return None, "Timeout"
     except Exception as e: print(f"ERROR: Unexpected error on remote command to {host}: {e}"); return None, str(e)
-
 
 def start_background_monitor(cmd_list):
     print(f"Starting background monitor: {' '.join(cmd_list)}")
@@ -112,7 +111,6 @@ def stop_background_monitor(process):
         except Exception as kill_e:
             print(f"ERROR: Failed to kill monitor PID={process.pid} directly after error: {kill_e}")
         return None, str(e)
-
 
 def generate_random_ip():
     while True:
@@ -246,8 +244,6 @@ def stop_suricata_instance():
     return True
 
 def start_suricata_with_config(config_file, interface):
-    
-    
     print(f"Starting Suricata with config {config_file} on interface {interface}...")
     cmd = ["sudo", "suricata", "-c", config_file, "-i", interface, "-D"]
     stdout, stderr = run_local_command(cmd, check=False)
@@ -279,9 +275,7 @@ def start_suricata_with_config(config_file, interface):
             print(f"WARNING: Found other Suricata processes, but not '{SURICATA_PROCESS_NAME}'. PIDs: {stdout_any.strip()}")
         return False 
 
-
 def parse_iperf_output(output):
-    
     if not output: return 0.0
     bandwidth = 0.0
     lines = output.strip().split('\n')
@@ -318,7 +312,6 @@ def parse_iperf_output(output):
                         else:
                             value_index = -1
                             break
-
                 if value_index >= 0 and value_index < len(parts):
                     bandwidth = float(parts[value_index]) * unit_multiplier
                     print(f"Parsed Bandwidth: {bandwidth:.2f} Mbits/sec (from line: '{line.strip()}')")
@@ -368,7 +361,6 @@ def parse_vmstat_output(output):
     if not cpu_samples:
         print("WARNING: No valid CPU samples found in vmstat output")
         return 0.0
-
     avg_cpu = sum(cpu_samples) / len(cpu_samples)
     return round(avg_cpu, 2)
 
@@ -379,7 +371,6 @@ def parse_sar_mem_output(output):
     count = 0
     memused_index = -1
     header_found = False
-
     for line in lines:
         parts = line.split()
         if not parts: continue
@@ -398,9 +389,7 @@ def parse_sar_mem_output(output):
         print(output)
         print("--- end sar output ---")
         return 0.0
-
     avg_mem_from_average_line = -1.0
-
     for line in lines:
         parts = line.split()
         if not parts: continue
@@ -430,7 +419,6 @@ def parse_sar_mem_output(output):
                     print(f"Warning: Skipping unreasonable %memused value ({mem_used_percent:.2f}%) from line: {line}")
             except (ValueError, IndexError):
                 continue
-
     if avg_mem_from_average_line >= 0:
          print(f"Using value from Average line: {avg_mem_from_average_line:.2f}%")
          return avg_mem_from_average_line
@@ -457,11 +445,8 @@ def write_results_to_csv(filename, header, data_row):
     except Exception as e:
         print(f"ERROR: Writing to CSV {filename}: {e}")
 
-
 if __name__ == "__main__":
     print("Starting Suricata performance test (using SYSTEM-WIDE metrics)...")
-
-    
     required_tools = ["suricata", "sshpass", "iperf3", "vmstat", "sar", "pgrep", "pkill", "sudo"]
     missing_tools = []
     for tool in required_tools:
@@ -477,7 +462,6 @@ if __name__ == "__main__":
 
     if not os.path.exists(SURICATA_CONFIG_FILE):
         print(f"CRITICAL ERROR: Base Suricata config not found: {SURICATA_CONFIG_FILE}"); exit(1)
-
     
     os.makedirs(RESULTS_DIR, exist_ok=True)
     os.makedirs(TEMP_RULES_DIR, exist_ok=True)
@@ -493,11 +477,9 @@ if __name__ == "__main__":
                 os.remove(f)
             except OSError as e:
                  print(f"Warning: Could not remove {f}: {e}")
-
     
     if not stop_suricata_instance():
         print("Warning: Could not reliably stop existing Suricata instances. Continuing anyway...")
-
     
     print("\n--- Starting iperf3 server on DUT ---")
     iperf_server_cmd = ["iperf3", "-s", "-B", DUT_IP]
@@ -507,7 +489,6 @@ if __name__ == "__main__":
         exit(1)
     print("iperf3 server started. Waiting 3s...")
     time.sleep(3)
-
     
     for count in RULE_COUNTS:
         print(f"\n{'='*10} TESTING: Suricata with {count} rules (System Metrics) {'='*10}")
@@ -520,7 +501,6 @@ if __name__ == "__main__":
         sar_output = None
 
         try:
-            
             print("\n--- Step 1: Generating Rules and Configuration ---")
             stop_suricata_instance() 
 
@@ -532,7 +512,6 @@ if __name__ == "__main__":
                 print(f"ERROR: Failed to create test config for count {count}. Skipping test.")
                 continue
 
-            
             print("\n--- Step 2: Starting Suricata ---")
             suricata_started_successfully = start_suricata_with_config(TEMP_CONFIG_FILE, DUT_INTERFACE)
             if not suricata_started_successfully:
@@ -542,7 +521,6 @@ if __name__ == "__main__":
                  print(f"Suricata service started successfully for {count} rules.")
                  time.sleep(3) 
 
-            
             print("\n--- Step 3: Starting Resource Monitors (vmstat & sar) ---")
             
             num_samples = (TEST_DURATION // MONITOR_INTERVAL) + 5
@@ -561,7 +539,6 @@ if __name__ == "__main__":
                  continue
             print(f"System monitors (vmstat, sar) started. Waiting 3s before traffic...")
             time.sleep(3)
-
             
             print("\n--- Step 4: Starting Traffic Generation (iperf3 client) ---")
             iperf_client_cmd = f"iperf3 -c {DUT_IP} -t {TEST_DURATION} -B {GENERATOR_IP} -P {IPERF_STREAMS}"
@@ -569,7 +546,6 @@ if __name__ == "__main__":
             print("--- Traffic Generation Finished ---")
             if iperf_stdout is None:
                 print("ERROR: iperf3 client failed or timed out. Bandwidth results might be 0 or inaccurate.")
-
             
             print("\n--- Step 5: Stopping Resource Monitors (vmstat & sar) ---")
             print(f"Waiting {MONITOR_INTERVAL}s for final monitor samples...")
@@ -577,11 +553,9 @@ if __name__ == "__main__":
 
             vmstat_output, vmstat_err = stop_background_monitor(vmstat_monitor)
             sar_output, sar_err = stop_background_monitor(sar_monitor)
-
             
             print("\n--- Step 6: Processing and Recording Results ---")
             bandwidth_mbps = parse_iperf_output(iperf_stdout) if iperf_stdout else 0.0
-
             
             avg_system_cpu_percent = parse_vmstat_output(vmstat_output) if vmstat_output else 0.0
             avg_system_mem_percent = parse_sar_mem_output(sar_output) if sar_output else 0.0
@@ -603,13 +577,11 @@ if __name__ == "__main__":
                  stop_background_monitor(sar_monitor)
 
         finally:
-            
             print("\n--- Step 7: Stopping Suricata and Cleaning up ---")
             if suricata_started_successfully:
                 stop_suricata_instance()
             else:
                 print("Skipping Suricata stop (was not started successfully).")
-
             
             if os.path.exists(temp_rule_file_path):
                 print(f"Removing temporary rule file: {temp_rule_file_path}")
@@ -623,7 +595,6 @@ if __name__ == "__main__":
             print(f"--- Test for {count} rules completed ---")
             print("Waiting 5s before next rule count...")
             time.sleep(5)
-
     
     print("\n" + "="*10 + " Final Cleanup " + "="*10)
     stop_suricata_instance() 
